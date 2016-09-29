@@ -34,7 +34,7 @@ class ACTModel(object):
         # set up ACT cell and inner rnn-type cell for use inside the ACT cell
         with tf.variable_scope("rnn"):
             if self.use_lstm:
-                inner_cell = rnn_cell.BasicLSTMCell(self.config.hidden_size)
+                inner_cell = rnn_cell.BasicLSTMCell(self.config.hidden_size, state_is_tuple=True)
             else:
                 inner_cell = rnn_cell.GRUCell(self.config.hidden_size)
 

@@ -5,6 +5,7 @@ import tensorflow as tf
 from tensorflow.python.ops.nn import rnn_cell, rnn
 from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import variable_scope as vs
+from tensorflow.python.ops import array_ops
 
 
 # TODO batch_size should be inferred from inputs, instead passing as argument
@@ -32,6 +33,11 @@ class ACTCell(rnn_cell.RNNCell):
     def __call__(self, inputs, state, timestep=0, scope=None):
         with vs.variable_scope(scope or type(self).__name__):
             # define within cell constants/ counters used to control while loop for ACTStep
+            self.state_is_tuple = False
+            if isinstance(state, (tuple, list)):
+                state = array_ops.concat(1, state)
+                self.state_is_tuple = True
+
             prob = tf.constant(0.0, tf.float32, [self.batch_size], name="prob")
             prob_compare = tf.constant(0.0, tf.float32, [self.batch_size], name="prob_compare")
             counter = tf.constant(0.0, tf.float32, [self.batch_size], name="counter")
@@ -68,6 +74,11 @@ class ACTCell(rnn_cell.RNNCell):
             output = tf.sigmoid(tf.nn.rnn_cell._linear(output, self.batch_size, 0.0))
 
         # one could try to return remainder, iterations here as well to track
+
+        if self.state_is_tuple:
+            next_c, next_h = array_ops.split(1, 2, next_state)
+            next_state = rnn_cell._LSTMStateTuple(next_c, next_h)
+
         return output, next_state
 
     def CalculatePonderCost(self, time_penalty):
@@ -93,7 +104,14 @@ class ACTCell(rnn_cell.RNNCell):
                               lambda: tf.zeros([self.batch_size, 1], tf.float32))
 
         input_with_flags = tf.concat(1, [binary_flag, input])
+        if self.state_is_tuple:
+            (c, h) = array_ops.split(1, 2, state)
+            state = rnn_cell._LSTMStateTuple(c, h)
+
         output, new_state = rnn(self.cell, [input_with_flags], state, scope=type(self.cell).__name__)
+
+        if self.state_is_tuple:
+            new_state = array_ops.concat(1, new_state)
 
         with tf.variable_scope('sigmoid_activation_for_pondering'):
             p = tf.squeeze(tf.sigmoid(tf.nn.rnn_cell._linear(new_state, 1, True)))  # haulting unit
@@ -123,7 +141,11 @@ class ACTCell(rnn_cell.RNNCell):
             remainder = tf.constant(1.0, tf.float32, [self.batch_size]) - prob
             remainder_expanded = tf.expand_dims(remainder, 1)
             tiled_remainder_output = tf.tile(remainder_expanded, [1, self.output_size])
+            if self.state_is_tuple:
+                self.cell._state_is_tuple = False
             tiled_remainder_states = tf.tile(remainder_expanded, [1, self.state_size])
+            if self.state_is_tuple:
+                self.cell._state_is_tuple = True
 
             acc_state = (new_state * tiled_remainder_states) + acc_states
             acc_output = (output[0] * tiled_remainder_output) + acc_outputs
@@ -137,7 +159,13 @@ class ACTCell(rnn_cell.RNNCell):
             # to acc_state or acc_output
 
             p_expanded = tf.expand_dims(p * new_float_mask, 1)
+
+            if self.state_is_tuple:
+                self.cell._state_is_tuple = False
             tiled_p_states = tf.tile(p_expanded, [1, self.state_size])
+            if self.state_is_tuple:
+                self.cell._state_is_tuple = True
+
             tiled_p_outputs = tf.tile(p_expanded, [1, self.output_size])
 
             acc_state = (new_state * tiled_p_states) + acc_states
