@@ -53,13 +53,16 @@ class ACTModel(object):
         softmax_b = tf.get_variable("softmax_b", [self.vocab_size])
         self.logits = tf.matmul(output, softmax_w) + softmax_b  # dim (400, 10,000)(numsteps*batchsize, vocabsize)
 
-        loss = seq2seq.sequence_loss_by_example(
+        # by default averages across time steps
+        loss = seq2seq.sequence_loss(
             [self.logits],
             [tf.reshape(self.targets, [-1])],
             [tf.ones([batch_size * num_steps])])
 
+        loss_batch = tf.reduce_sum(loss)
+        self.perplexity = tf.exp(loss_batch)
         # add up loss and retrieve batch-normalised ponder cost: sum N + sum Remainder
-        self.cost = tf.reduce_sum(loss) / batch_size + \
+        self.cost = loss_batch + \
                     self.act.CalculatePonderCost(time_penalty=self.config.ponder_time_penalty)
 
         self.final_state = self.outputs[-1]

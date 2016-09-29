@@ -18,7 +18,6 @@ from models.AdaptiveComputationTime import ACTModel
 # Configure moving average (perhaps not needed with tensor board)
 # Try using contrib.learn (skflow)
 # Add Tensor board logging
-# Make it work with LSTM (default uses GRU)
 # Pass the initial state as the final output state
 # Try using dynamic rnn for sentence-wise rnn
 # untie loss ( with Ponder Cost) and perplexity
