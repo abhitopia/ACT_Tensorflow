@@ -17,7 +17,7 @@ class ACTCell(rnn_cell.RNNCell):
         self.batch_size = batch_size
         self.one_minus_eps = tf.constant(1.0 - epsilon, tf.float32, [self.batch_size])
         self.cell = cell
-        self.N = tf.constant(max_computation, tf.float32, [self.batch_size])
+        self.max_computation = max_computation
         self.ACT_remainder = []
         self.ACT_iterations = []
         self.sigmoid_output = sigmoid_output
@@ -56,7 +56,7 @@ class ACTCell(rnn_cell.RNNCell):
                 tf.reduce_any(
                     tf.logical_and(
                         tf.less(prob_compare, self.one_minus_eps),
-                        tf.less(counter, self.N)))
+                        tf.less(counter, self.max_computation)))
             # only stop if all of the batch have passed either threshold
 
             # Do while loop iterations until predicate above is false.
@@ -180,7 +180,7 @@ class ACTCell(rnn_cell.RNNCell):
         # if the batch mask is all zeros, then all batches have finished.
         # if any batch element still has both a prob < 1-eps AND counter< N we continue.
 
-        counter_condition = tf.less(counter, self.N)
+        counter_condition = tf.less(counter, self.max_computation)
         condition = tf.reduce_any(tf.logical_and(new_batch_mask, counter_condition))
 
         acc_state, acc_output = tf.cond(condition, normal, use_remainder)

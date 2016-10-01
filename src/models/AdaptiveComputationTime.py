@@ -7,8 +7,6 @@ from src.implementations.ACTCell import ACTCell
 from tensorflow.python.ops.nn import rnn_cell, rnn, seq2seq
 
 
-# Allow usage of any cell GRU, LSTM, BasicLSTM, etc.
-
 class ACTModel(object):
     def __init__(self, config, is_training=False):
         # No need for multiple layers for obvious reasons

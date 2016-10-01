@@ -20,7 +20,6 @@ from models.AdaptiveComputationTime import ACTModel
 # Add Tensor board logging
 # Pass the initial state as the final output state
 # Try using dynamic rnn for sentence-wise rnn
-# untie loss ( with Ponder Cost) and perplexity
 
 
 def get_config(conf):
@@ -38,7 +37,6 @@ def get_config(conf):
 
 def main():
     config = get_config(FLAGS.model_size)
-    eval_config = get_config(FLAGS.model_size)
     saved_model_path = FLAGS.model_path
     weights_dir = FLAGS.weights_dir
     verbose = FLAGS.verbose
@@ -100,7 +98,7 @@ if __name__ == '__main__':
     flags.DEFINE_string("model_size", "small", "Size of model to train, either small, medium or large")
     flags.DEFINE_string("data_path", 'data/', "data_path")
     flags.DEFINE_string("model_path", None, "full path of a saved model to load")
-    flags.DEFINE_string("weights_dir", 'model/', "full directory path to save weights into per epoch")
+    flags.DEFINE_string("weights_dir", 'runs/', "full directory path to save weights into per epoch")
     flags.DEFINE_boolean("verbose", True, "Verbosity of the training")
     flags.DEFINE_boolean("debug", True, "Uses small corpuses for debugging purposes")
     FLAGS = flags.FLAGS
