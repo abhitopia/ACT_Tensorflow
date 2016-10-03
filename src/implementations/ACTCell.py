@@ -50,7 +50,6 @@ class ACTCell(rnn_cell.RNNCell):
             # Ie all (probability < 1-eps AND counter < N) are false.
 
             # x = self.ACTStep(batch_mask,prob_compare,prob,counter,state,inputs,acc_outputs,acc_states)
-
             pred = lambda batch_mask, prob_compare, prob, \
                           counter, state, input, acc_output, acc_state: \
                 tf.reduce_any(
@@ -61,7 +60,7 @@ class ACTCell(rnn_cell.RNNCell):
 
             # Do while loop iterations until predicate above is false.
             _, _, remainders, iterations, _, _, output, next_state = \
-                control_flow_ops.while_loop(pred, self.ACTStep,
+                control_flow_ops.while_loop(pred, self.act_step,
                                             [batch_mask, prob_compare, prob,
                                              counter, state, inputs, acc_outputs, acc_states])
 
@@ -81,14 +80,14 @@ class ACTCell(rnn_cell.RNNCell):
 
         return output, next_state
 
-    def CalculatePonderCost(self, time_penalty):
-        '''returns tensor of shape [1] which is the total ponder cost'''
+    def calculate_ponder_cost(self, time_penalty):
+        """returns tensor of shape [1] which is the total ponder cost"""
 
         return time_penalty * tf.reduce_sum(
             tf.add_n(self.ACT_remainder) / len(self.ACT_remainder) +
             tf.to_float(tf.add_n(self.ACT_iterations) / len(self.ACT_iterations)))
 
-    def ACTStep(self, batch_mask, prob_compare, prob, counter, state, input, acc_outputs, acc_states):
+    def act_step(self, batch_mask, prob_compare, prob, counter, state, input, acc_outputs, acc_states):
         # General idea: generate halting probabilites and accumulate them. Stop when the accumulated probs
         # reach a halting value, 1-eps. At each timestep, multiply the prob with the rnn output/state.
         # There is a subtlety here regarding the batch_size, as clearly we will have examples halting

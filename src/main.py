@@ -4,7 +4,8 @@ import os
 import utils.ptb_reader as reader
 from src.implementations.ACTCell import ACTCell
 from tensorflow.python.ops.nn import rnn_cell, rnn, seq2seq
-from tensorflow.contrib.learn.python.learn.monitors import ValidationMonitor, CaptureVariable
+from tensorflow.contrib.learn.python.learn.monitors import ValidationMonitor
+from tensorflow.contrib.learn.python.learn.metric_spec import MetricSpec
 
 # TODO Pass the initial state as the final output state
 # TODO Try using dynamic rnn for sentence-wise rnn
@@ -30,7 +31,7 @@ tf.flags.DEFINE_float("ponder_time_penalty", 0.01, "Pondering penalty (0.01)")
 tf.flags.DEFINE_boolean("use_lstm", False, "whether to use LSTM (False)")
 
 # config flags
-tf.flags.DEFINE_integer("save_checkpoints_secs", 300, "Save checkpoints every this many seconds")
+tf.flags.DEFINE_integer("save_checkpoints_secs", 600, "Save checkpoints every this many seconds")
 tf.flags.DEFINE_integer("save_summary_steps", 10, "Save summaries every this many steps")
 tf.flags.DEFINE_integer("keep_checkpoint_max", 10, "The maximum number of recent checkpoint files to keep. " +
                         "As new files are created, older files are deleted. If None or 0, all checkpoint" +
@@ -40,6 +41,7 @@ tf.flags.DEFINE_integer("tf_random_seed", 42, "Random seed for TensorFlow initia
 
 # validation
 tf.flags.DEFINE_integer("eval_steps", 10, "Number of batches to evaluate in one run of validation")
+tf.flags.DEFINE_integer("every_n_steps", 100, "Validation is run after this many steps")
 
 FLAGS = tf.flags.FLAGS
 tf.logging.set_verbosity(tf.logging.DEBUG)
@@ -78,16 +80,16 @@ def model_fn(features, targets, mode):
     softmax_b = tf.get_variable("softmax_b", [FLAGS.vocab_size])
     logits = tf.matmul(output, softmax_w) + softmax_b  # dim (400, 10,000)(numsteps*batchsize, vocabsize)
 
-    # by default averages across time steps
+    # by default averages across time steps and batches
     loss = seq2seq.sequence_loss(
         [logits],
         [tf.reshape(targets, [-1])],
         [tf.ones([FLAGS.batch_size * FLAGS.num_time_steps])])
 
     loss_batch = tf.reduce_sum(loss)
-    perplexity = tf.exp(loss_batch, name='perplexity')
+    perplexity = tf.exp(loss_batch, name='perplexity') # average perplexity per word
     # add up loss and retrieve batch-normalised ponder cost: sum N + sum Remainder
-    cost = loss_batch + act.CalculatePonderCost(time_penalty=FLAGS.ponder_time_penalty)
+    cost = loss_batch + act.calculate_ponder_cost(time_penalty=FLAGS.ponder_time_penalty)
 
     if mode == tf.contrib.learn.ModeKeys.TRAIN:
         # TO DO implement learning_rate_decay
@@ -97,9 +99,9 @@ def model_fn(features, targets, mode):
             learning_rate=FLAGS.learning_rate,
             clip_gradients=FLAGS.max_grad_norm,
             optimizer='Adam')
-        return perplexity, cost, train_op
+        return {'perplexity': perplexity}, cost, train_op
     else:
-        return perplexity, cost, tf.no_op()
+        return {'perplexity': perplexity}, cost, tf.no_op()
 
 
 def load_dataset():
@@ -109,10 +111,10 @@ def load_dataset():
     else:
         raw_data = reader.ptb_raw_data(FLAGS.data_path + 'debug/', "ptb.train.txt", "ptb.valid.txt", "ptb.test.txt")
     train_data, val_data, test_data, vocab, word_to_id = raw_data
-    trn_X, trn_y = reader.ptb_split_to_features_and_targets(train_data, FLAGS.num_time_steps, FLAGS.batch_size)
-    val_X, val_y = reader.ptb_split_to_features_and_targets(val_data, FLAGS.num_time_steps, FLAGS.batch_size)
-    tst_X, tst_y = reader.ptb_split_to_features_and_targets(test_data, FLAGS.num_time_steps, FLAGS.batch_size)
-    return trn_X, trn_y, val_X, val_y, tst_X, tst_y, vocab, word_to_id
+    trn_x, trn_y = reader.ptb_split_to_features_and_targets(train_data, FLAGS.num_time_steps, FLAGS.batch_size)
+    val_x, val_y = reader.ptb_split_to_features_and_targets(val_data, FLAGS.num_time_steps, FLAGS.batch_size)
+    tst_x, tst_y = reader.ptb_split_to_features_and_targets(test_data, FLAGS.num_time_steps, FLAGS.batch_size)
+    return trn_x, trn_y, val_x, val_y, tst_x, tst_y, vocab, word_to_id
 
 
 def get_config():
@@ -124,21 +126,26 @@ def get_config():
 
 
 def get_metrics():
-    return {'perplexity': tf.contrib.metrics.streaming_mean}
+    metrics = {
+        'perplexity': MetricSpec(metric_fn=tf.contrib.metrics.streaming_mean,
+                                 prediction_key="perplexity")
+    }
+    return metrics
 
 
 def main(unused_argv):
-    trn_X, trn_y, val_X, val_y, _, _, _, _ = load_dataset()
+    trn_x, trn_y, val_x, val_y, _, _, _, _ = load_dataset()
 
     estimator = tf.contrib.learn.Estimator(model_fn=model_fn,
                                            model_dir=MODEL_DIR,
                                            config=get_config())
 
-    val_monitor = ValidationMonitor(x=val_X, y=val_y, batch_size=FLAGS.batch_size,
+    val_monitor = ValidationMonitor(x=val_x, y=val_y, batch_size=FLAGS.batch_size,
                                     eval_steps=FLAGS.eval_steps,
-                                    every_n_steps=100,
+                                    every_n_steps=FLAGS.every_n_steps,
                                     metrics=get_metrics())
-    estimator.fit(x=trn_X, y=trn_y, batch_size=FLAGS.batch_size,
+
+    estimator.fit(x=trn_x, y=trn_y, batch_size=FLAGS.batch_size,
                   monitors=[val_monitor])
 
 
