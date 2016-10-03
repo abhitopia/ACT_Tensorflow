@@ -87,6 +87,21 @@ def ptb_raw_data(data_path, train, valid, test):
     return train_data, valid_data, test_data, vocabulary, word_to_id
 
 
+def ptb_split_to_features_and_targets(raw_data, num_steps, divisible_by):
+    raw_data = np.array(raw_data, dtype=np.int32)
+    data_len = len(raw_data)
+    batch_size = data_len//num_steps
+    batch_size = divisible_by * (batch_size//divisible_by)
+    input = np.zeros([batch_size, num_steps], dtype=np.int32)
+    output = np.zeros([batch_size, num_steps], dtype=np.int32)
+
+    for i in range(batch_size):
+        input[i] = raw_data[num_steps * i:num_steps * (i + 1)]
+        output[i] = raw_data[(num_steps*i + 1):(num_steps * (i + 1)+1)]
+
+    return input, output
+
+
 def ptb_iterator(raw_data, batch_size, num_steps):
     """Iterate on the raw PTB data.
 
