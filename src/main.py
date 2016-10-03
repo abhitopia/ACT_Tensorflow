@@ -30,13 +30,17 @@ tf.flags.DEFINE_float("ponder_time_penalty", 0.01, "Pondering penalty (0.01)")
 tf.flags.DEFINE_boolean("use_lstm", False, "whether to use LSTM (False)")
 
 # config flags
-tf.flags.DEFINE_integer("save_checkpoints_secs", 60, "Save checkpoints every this many seconds")
-tf.flags.DEFINE_integer("save_summary_steps", 100, "Save summaries every this many steps")
-tf.flags.DEFINE_integer("keep_checkpoint_max", 5, "The maximum number of recent checkpoint files to keep. " +
+tf.flags.DEFINE_integer("save_checkpoints_secs", 300, "Save checkpoints every this many seconds")
+tf.flags.DEFINE_integer("save_summary_steps", 10, "Save summaries every this many steps")
+tf.flags.DEFINE_integer("keep_checkpoint_max", 10, "The maximum number of recent checkpoint files to keep. " +
                         "As new files are created, older files are deleted. If None or 0, all checkpoint" +
                         " files are kept.")
 tf.flags.DEFINE_integer("tf_random_seed", 42, "Random seed for TensorFlow initializers. Setting this value " +
                                               "allows consistency between reruns")
+
+# validation
+tf.flags.DEFINE_integer("eval_steps", 10, "Number of batches to evaluate in one run of validation")
+
 FLAGS = tf.flags.FLAGS
 tf.logging.set_verbosity(tf.logging.DEBUG)
 
@@ -113,21 +117,27 @@ def load_dataset():
 
 def get_config():
     config = tf.contrib.learn.RunConfig(save_checkpoints_secs=FLAGS.save_checkpoints_secs,
-                                        save_summary_steps=FLAGS.save_summart_steps,
+                                        save_summary_steps=FLAGS.save_summary_steps,
                                         keep_checkpoint_max=FLAGS.keep_checkpoint_max,
                                         tf_random_seed=FLAGS.tf_random_seed)
     return config
 
 
+def get_metrics():
+    return {'perplexity': tf.contrib.metrics.streaming_mean}
+
+
 def main(unused_argv):
-    trn_X, trn_y, val_X, val_y = load_dataset()
+    trn_X, trn_y, val_X, val_y, _, _, _, _ = load_dataset()
 
     estimator = tf.contrib.learn.Estimator(model_fn=model_fn,
                                            model_dir=MODEL_DIR,
                                            config=get_config())
 
-    metrics = {'perplexity': tf.contrib.metrics.streaming_mean}
-    val_monitor = ValidationMonitor(x=val_X, y=val_y, batch_size=FLAGS.batch_size, every_n_steps=100, metrics=metrics)
+    val_monitor = ValidationMonitor(x=val_X, y=val_y, batch_size=FLAGS.batch_size,
+                                    eval_steps=FLAGS.eval_steps,
+                                    every_n_steps=100,
+                                    metrics=get_metrics())
     estimator.fit(x=trn_X, y=trn_y, batch_size=FLAGS.batch_size,
                   monitors=[val_monitor])
 
