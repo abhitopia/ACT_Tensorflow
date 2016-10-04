@@ -6,6 +6,8 @@ from src.implementations.ACTCell import ACTCell
 from tensorflow.python.ops.nn import rnn_cell, rnn, seq2seq
 from tensorflow.contrib.learn.python.learn.monitors import ValidationMonitor
 from tensorflow.contrib.learn.python.learn.metric_spec import MetricSpec
+from tensorflow.contrib.learn.python.learn.estimators import Estimator
+from tensorflow.contrib.learn.python.learn.learn_io.data_feeder import DataFeeder, setup_train_data_feeder
 
 # TODO Pass the initial state as the final output state
 # TODO Try using dynamic rnn for sentence-wise rnn
@@ -40,8 +42,8 @@ tf.flags.DEFINE_integer("tf_random_seed", 42, "Random seed for TensorFlow initia
                                               "allows consistency between reruns")
 
 # validation
-tf.flags.DEFINE_integer("eval_steps", 10, "Number of batches to evaluate in one run of validation")
-tf.flags.DEFINE_integer("every_n_steps", 100, "Validation is run after this many steps")
+tf.flags.DEFINE_integer("eval_steps", None, "Number of batches to evaluate in one run of validation")
+tf.flags.DEFINE_integer("every_n_steps", 10, "Validation is run after this many steps")
 
 FLAGS = tf.flags.FLAGS
 tf.logging.set_verbosity(tf.logging.DEBUG)
@@ -54,10 +56,10 @@ else:
 
 
 def model_fn(features, targets, mode):
-    # features = tf.placeholder(tf.int32, [FLAGS.batch_size, FLAGS.num_steps])
-    # targets = tf.placeholder(tf.int32, [FLAGS.batch_size, FLAGS.num_steps])
+    # features = tf.placeholder(tf.int32, [batch_size, num_steps])
+    # targets = tf.placeholder(tf.int32, [batch_size, num_steps])
 
-    tf.Assert(tf.equal(tf.shape(features)[0], FLAGS.batch_size), [features, targets])
+    features = tf.Print(features, [tf.shape(features)], 'features')
     embedding = tf.get_variable('embedding', [FLAGS.vocab_size, FLAGS.hidden_size])
     # set up ACT cell and inner rnn-type cell for use inside the ACT cell
     with tf.variable_scope("rnn"):
@@ -67,12 +69,12 @@ def model_fn(features, targets, mode):
             inner_cell = rnn_cell.GRUCell(FLAGS.hidden_size)
 
     with tf.variable_scope("ACT"):
-        act = ACTCell(inner_cell, FLAGS.epsilon, max_computation=FLAGS.max_computation, batch_size=FLAGS.batch_size)
+        act = ACTCell(inner_cell, FLAGS.epsilon, max_computation=FLAGS.max_computation)
 
     inputs = tf.nn.embedding_lookup(embedding, features)
-    inputs = [tf.squeeze(single_input, [1]) for single_input in tf.split(1, FLAGS.num_time_steps, inputs)]
+    inputs_split = list(tf.unpack(inputs, axis=1))
 
-    outputs, final_state = rnn(act, inputs, dtype=tf.float32)
+    outputs, final_state = rnn(act, inputs_split, dtype=tf.float32)
 
     # softmax to get probability distribution over vocab
     output = tf.reshape(tf.concat(1, outputs), [-1, FLAGS.hidden_size])
@@ -84,10 +86,10 @@ def model_fn(features, targets, mode):
     loss = seq2seq.sequence_loss(
         [logits],
         [tf.reshape(targets, [-1])],
-        [tf.ones([FLAGS.batch_size * FLAGS.num_time_steps])])
+        [tf.reshape(tf.ones_like(targets, dtype=tf.float32), [-1])])
 
     loss_batch = tf.reduce_sum(loss)
-    perplexity = tf.exp(loss_batch, name='perplexity') # average perplexity per word
+    perplexity = tf.exp(loss_batch, name='perplexity')  # average perplexity per word
     # add up loss and retrieve batch-normalised ponder cost: sum N + sum Remainder
     cost = loss_batch + act.calculate_ponder_cost(time_penalty=FLAGS.ponder_time_penalty)
 
@@ -136,17 +138,24 @@ def get_metrics():
 def main(unused_argv):
     trn_x, trn_y, val_x, val_y, _, _, _, _ = load_dataset()
 
-    estimator = tf.contrib.learn.Estimator(model_fn=model_fn,
-                                           model_dir=MODEL_DIR,
-                                           config=get_config())
+    # def gen_data(data):
+    #
+    #     # data is some numpy error for this example
+    #     # the loop terminates at multiple of batch_size
+    #     data = data[:2*FLAGS.batch_size]
+    #     for i in range(len(data)):
+    #         yield data[i]
+
+    estimator = Estimator(model_fn=model_fn, model_dir=MODEL_DIR, config=get_config())
 
     val_monitor = ValidationMonitor(x=val_x, y=val_y, batch_size=FLAGS.batch_size,
                                     eval_steps=FLAGS.eval_steps,
                                     every_n_steps=FLAGS.every_n_steps,
                                     metrics=get_metrics())
 
-    estimator.fit(x=trn_x, y=trn_y, batch_size=FLAGS.batch_size,
-                  monitors=[val_monitor])
+    estimator.fit(x=trn_x, y=trn_y, batch_size=FLAGS.batch_size, monitors=[val_monitor])
+
+    # estimator.fit(x=gen_data(trn_x), y=gen_data(trn_y), batch_size=FLAGS.batch_size, monitors=[val_monitor])
 
 
 if __name__ == "__main__":
