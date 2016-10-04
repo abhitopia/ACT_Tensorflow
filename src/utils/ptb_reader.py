@@ -138,3 +138,16 @@ def ptb_iterator(raw_data, batch_size, num_steps):
         x = data[:, i*num_steps:(i+1)*num_steps]
         y = data[:, i*num_steps+1:(i+1)*num_steps+1]
         yield (x, y)
+
+
+def load_ptb_dataset(data_path, num_time_steps, batch_size, debug=False):
+    print('Loading dataset...')
+    if not debug:
+        raw_data = ptb_raw_data(data_path, "ptb.train.txt", "ptb.valid.txt", "ptb.test.txt")
+    else:
+        raw_data = ptb_raw_data(data_path + 'debug/', "ptb.train.txt", "ptb.valid.txt", "ptb.test.txt")
+    train_data, val_data, test_data, vocab, word_to_id = raw_data
+    trn_x, trn_y = ptb_split_to_features_and_targets(train_data, num_time_steps, batch_size)
+    val_x, val_y = ptb_split_to_features_and_targets(val_data, num_time_steps, batch_size)
+    tst_x, tst_y = ptb_split_to_features_and_targets(test_data, num_time_steps, batch_size)
+    return trn_x, trn_y, val_x, val_y, tst_x, tst_y, vocab, word_to_id

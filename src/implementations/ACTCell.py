@@ -8,8 +8,6 @@ from tensorflow.python.ops import variable_scope as vs
 from tensorflow.python.ops import array_ops
 
 
-# TODO batch_size should be inferred from inputs, instead passing as argument
-
 class ACTCell(rnn_cell.RNNCell):
     """An RNN cell implementing Graves' Adaptive Computation Time algorithm"""
 
