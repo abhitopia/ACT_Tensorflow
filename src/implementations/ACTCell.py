@@ -58,7 +58,7 @@ class ACTCell(rnn_cell.RNNCell):
             # Do while loop iterations until predicate above is false.
             _, _, remainders, iterations, _, _, output, next_state = \
                 control_flow_ops.while_loop(pred, self.act_step,
-                                            [batch_mask, prob_compare, prob,
+                                            loop_vars=[batch_mask, prob_compare, prob,
                                              counter, state, inputs, acc_outputs, acc_states])
 
         # accumulate remainder  and N values
@@ -95,7 +95,6 @@ class ACTCell(rnn_cell.RNNCell):
                               lambda: tf.fill([self.batch_size, 1], tf.constant(1.0, dtype=tf.float32)),
                               lambda: tf.fill([self.batch_size, 1], tf.constant(0.0, dtype=tf.float32)))
 
-        binary_flag.set_shape([32, 1])  # dummy static shape to get while loop to work
         input_with_flags = tf.concat(1, [binary_flag, input])
         if self.state_is_tuple:
             (c, h) = array_ops.split(1, 2, state)
@@ -107,7 +106,7 @@ class ACTCell(rnn_cell.RNNCell):
             new_state = array_ops.concat(1, new_state)
 
         with tf.variable_scope('sigmoid_activation_for_pondering'):
-            p = tf.squeeze(tf.sigmoid(tf.nn.rnn_cell._linear(new_state, 1, bias=True)))  # haulting unit
+            p = tf.squeeze(tf.sigmoid(tf.nn.rnn_cell._linear(new_state, 1, bias=True)), squeeze_dims=1)  # haulting unit
 
         # multiply by the previous mask as if we stopped before, we don't want to start again
         # if we generate a p less than p_t-1 for a given example.
