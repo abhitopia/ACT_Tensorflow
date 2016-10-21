@@ -7,13 +7,12 @@ from tensorflow.contrib.learn.python.learn.monitors import ValidationMonitor
 from tensorflow.contrib.learn.python.learn.metric_spec import MetricSpec
 from tensorflow.contrib.learn.python.learn.estimators import Estimator
 
-
 # TODO Pass the initial state as the final output state
 # TODO Try using dynamic rnn for sentence-wise rnn
 
 tf.flags.DEFINE_string("model_dir", None, "Directory to store model checkpoints (defaults to ./runs)")
 tf.flags.DEFINE_string("data_path", 'data/', "data_path (/data)")
-tf.flags.DEFINE_integer("batch_size", 32, "batch size (defaults to 32)")
+tf.flags.DEFINE_integer("batch_size", 10, "batch size (defaults to 32)")
 tf.flags.DEFINE_integer("num_time_steps", 20, "number of steps to unroll RNN and apply BPTT (20)")
 tf.flags.DEFINE_boolean("debug", True, "set to true for loading smaller dataset")
 tf.flags.DEFINE_float("init_scale", 0.1, "Weights are initialized between [-init_scale, init_scale] (0.1)")
@@ -31,17 +30,17 @@ tf.flags.DEFINE_float("ponder_time_penalty", 0.01, "Pondering penalty (0.01)")
 tf.flags.DEFINE_boolean("use_lstm", False, "whether to use LSTM (False)")
 
 # config flags
-tf.flags.DEFINE_integer("save_checkpoints_secs", 600, "Save checkpoints every this many seconds")
+tf.flags.DEFINE_integer("save_checkpoints_secs", 60, "Save checkpoints every this many seconds")
 tf.flags.DEFINE_integer("save_summary_steps", 10, "Save summaries every this many steps")
 tf.flags.DEFINE_integer("keep_checkpoint_max", 10, "The maximum number of recent checkpoint files to keep. " +
                         "As new files are created, older files are deleted. If None or 0, all checkpoint" +
                         " files are kept.")
 tf.flags.DEFINE_integer("tf_random_seed", 42, "Random seed for TensorFlow initializers. Setting this value " +
-                                              "allows consistency between reruns")
+                        "allows consistency between reruns")
 
 # validation
 tf.flags.DEFINE_integer("eval_steps", None, "Number of batches to evaluate in one run of validation")
-tf.flags.DEFINE_integer("every_n_steps", 10, "Validation is run after this many steps")
+tf.flags.DEFINE_integer("every_n_steps", 5, "Validation is run after this many steps")
 
 FLAGS = tf.flags.FLAGS
 tf.logging.set_verbosity(tf.logging.DEBUG)
@@ -55,12 +54,13 @@ else:
 
 def main(unused_argv):
     trn_x, trn_y, val_x, val_y, _, _, _, _ = ptb_reader.load_ptb_dataset(FLAGS.data_path, FLAGS.batch_size,
-                                                                         FLAGS.num_time_steps)
+                                                                         FLAGS.num_time_steps, FLAGS.debug)
 
     config = tf.contrib.learn.RunConfig(save_checkpoints_secs=FLAGS.save_checkpoints_secs,
                                         save_summary_steps=FLAGS.save_summary_steps,
                                         keep_checkpoint_max=FLAGS.keep_checkpoint_max,
                                         tf_random_seed=FLAGS.tf_random_seed)
+
     estimator = Estimator(model_fn=adaptive_computation_time, model_dir=MODEL_DIR, config=config,
                           params=FLAGS.__dict__['__flags'])
 
@@ -75,7 +75,6 @@ def main(unused_argv):
                                     metrics=metrics)
 
     estimator.fit(x=trn_x, y=trn_y, batch_size=FLAGS.batch_size, monitors=[val_monitor])
-
 
 if __name__ == "__main__":
     tf.app.run()

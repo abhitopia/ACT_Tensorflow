@@ -140,7 +140,7 @@ def ptb_iterator(raw_data, batch_size, num_steps):
         yield (x, y)
 
 
-def load_ptb_dataset(data_path, num_time_steps, batch_size, debug=False):
+def load_ptb_dataset(data_path, batch_size, num_time_steps, debug=False):
     print('Loading dataset...')
     if not debug:
         raw_data = ptb_raw_data(data_path, "ptb.train.txt", "ptb.valid.txt", "ptb.test.txt")

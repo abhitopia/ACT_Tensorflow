@@ -6,6 +6,10 @@ from tensorflow.python.ops.nn import rnn_cell, rnn, seq2seq
 def adaptive_computation_time(features, targets, mode, params):
     # features = tf.placeholder(tf.int32, [batch_size, num_steps])
     # targets = tf.placeholder(tf.int32, [batch_size, num_steps])
+    if isinstance(features, dict):
+        features = features['input']
+    if isinstance(targets, dict):
+        targets = targets['output']
     hidden_size = params['hidden_size']
     vocab_size = params['vocab_size']
     use_lstm = params['use_lstm']
@@ -15,7 +19,6 @@ def adaptive_computation_time(features, targets, mode, params):
     learning_rate = params['learning_rate']
     max_grad_norm = params['max_grad_norm']
 
-    features = tf.Print(features, [tf.shape(features)], 'features')
     embedding = tf.get_variable('embedding', [vocab_size, hidden_size])
 
     # set up ACT cell and inner rnn-type cell for use inside the ACT cell
