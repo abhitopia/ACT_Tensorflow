@@ -7,6 +7,10 @@ from tensorflow.python.ops import control_flow_ops
 from tensorflow.python.ops import variable_scope as vs
 from tensorflow.python.ops import array_ops
 
+# TODO Add more ACT tests
+# TODO compare performance based on fixed input vs fixed state
+# TODO implement Elastic RNN
+
 
 class ACTCell(rnn_cell.RNNCell):
     """An RNN cell implementing Graves' Adaptive Computation Time algorithm"""
